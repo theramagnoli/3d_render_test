@@ -1,78 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import * as THREE from "three";
-import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { XMLParser } from "fast-xml-parser";
 import { gsap } from "gsap";
 
 const imageSrc = ref<string | null>(null);
-
-interface Camera {
-    id: string;
-    label: string;
-    matrix: THREE.Matrix4;
-    imagePath: string;
-    referencePosition: THREE.Vector3;
-    referenceYaw: number;
-    referencePitch: number;
-    referenceRoll: number;
-}
-
-function parseCamerasXml(xml: string): Camera[] {
-    const parser = new XMLParser({
-        ignoreAttributes: false,
-        attributeNamePrefix: "",
-    });
-    const jsonObj = parser.parse(xml);
-    const cameras: Camera[] = [];
-
-    jsonObj.document.chunk.cameras.camera.forEach((camera: any) => {
-        const transformValues = camera.transform.split(" ").map(parseFloat);
-        const matrix = new THREE.Matrix4();
-        matrix.fromArray(transformValues);
-        matrix.transpose();
-
-        const reference = camera.reference;
-        const referencePosition = new THREE.Vector3(
-            parseFloat(reference.x),
-            parseFloat(reference.y),
-            parseFloat(reference.z),
-        );
-        const referenceYaw = parseFloat(reference.yaw);
-        const referencePitch = parseFloat(reference.pitch);
-        const referenceRoll = parseFloat(reference.roll);
-
-        cameras.push({
-            id: camera.id,
-            label: camera.label,
-            matrix,
-            imagePath: `/images/${camera.label}.jpg`,
-            referencePosition,
-            referenceYaw,
-            referencePitch,
-            referenceRoll,
-        });
-    });
-    return cameras;
-}
-
-function addCameraIcons(cameras: Camera[], scene: THREE.Scene) {
-    const iconGeometry = new THREE.SphereGeometry(0.1, 32, 32);
-    const iconMaterial = new THREE.MeshBasicMaterial({ color: "#0000ff" });
-
-    cameras.forEach((camera) => {
-        const icon = new THREE.Mesh(iconGeometry, iconMaterial);
-
-        icon.matrixAutoUpdate = false;
-        icon.applyMatrix4(camera.matrix);
-
-        icon.userData = { imagePath: camera.imagePath };
-        scene.add(icon);
-    });
-}
 
 onMounted(async () => {
     const canvas = document.getElementById("three-canvas") as HTMLCanvasElement;
@@ -95,37 +28,36 @@ onMounted(async () => {
     const light = new THREE.AmbientLight(0xffffff, 2.5);
     scene.add(light);
 
-    const mtlLoader = new MTLLoader();
-    const objLoader = new OBJLoader();
+    const fbxLoader = new FBXLoader();
 
-    const response = await fetch("/cint_cameras.xml");
-    const xml = await response.text();
+    fbxLoader.load("/cint_points_test.fbx", (model) => {
+        model.rotation.set(0, 4, 0);
 
-    const cameras = parseCamerasXml(xml);
-    addCameraIcons(cameras, scene);
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const fov = camera.fov * (Math.PI / 180);
+        let cameraZ = Math.abs((maxDim / 4) * Math.tan(fov * 2));
+        camera.position.z = cameraZ * 20;
+        camera.position.x = center.x;
+        camera.position.y = center.y - 10;
+        camera.lookAt(center);
+        controls.target = center;
 
-    mtlLoader.load("/cint_model.mtl", (material) => {
-        material.preload();
-        objLoader.setMaterials(material);
-        objLoader.load("/cint_model.obj", (model) => {
-            model.rotation.set(-0.8108, -2.1098, 2.1142);
-            model.position.set(-1.8186, 2.2441, 1.2676);
-
-            const box = new THREE.Box3().setFromObject(model);
-            const center = box.getCenter(new THREE.Vector3());
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const fov = camera.fov * (Math.PI / 180);
-            let cameraZ = Math.abs((maxDim / 4) * Math.tan(fov * 2));
-            camera.position.z = cameraZ * 3;
-            camera.position.x = center.x;
-            camera.position.y = center.y - 10;
-            camera.lookAt(center);
-            controls.target = center;
-
-            camera.updateProjectionMatrix();
-            scene.add(model);
+        model.traverse((child) => {
+            if (child.name === "Empty_test") {
+                const tag = new THREE.Mesh(
+                    new THREE.SphereGeometry(1, 64, 64),
+                    new THREE.MeshBasicMaterial({ color: "#ff0000" }),
+                );
+                tag.position.setFromMatrixPosition(child.matrixWorld);
+                scene.add(tag);
+            }
         });
+
+        camera.updateProjectionMatrix();
+        scene.add(model);
     });
 
     function render() {
@@ -205,5 +137,9 @@ onMounted(async () => {
         border: none;
         cursor: pointer;
     }
+}
+
+canvas {
+    display: block;
 }
 </style>
