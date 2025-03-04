@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import * as THREE from "three";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { XMLParser } from "fast-xml-parser";
 import { gsap } from "gsap";
@@ -101,12 +102,12 @@ onMounted(async () => {
     const xml = await response.text();
 
     const cameras = parseCamerasXml(xml);
-    // addCameraIcons(cameras, scene);
+    addCameraIcons(cameras, scene);
 
-    mtlLoader.load("/cint_points_test.mtl", (material) => {
+    mtlLoader.load("/cint_model.mtl", (material) => {
         material.preload();
         objLoader.setMaterials(material);
-        objLoader.load("/cint_points_test.obj", (model) => {
+        objLoader.load("/cint_model.obj", (model) => {
             model.rotation.set(-0.8108, -2.1098, 2.1142);
             model.position.set(-1.8186, 2.2441, 1.2676);
 
